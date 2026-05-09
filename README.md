@@ -1,11 +1,11 @@
-# TagTrack-AI_v2
+# MultiModal-Detection
 
-TagTrack-AI v2 is the refreshed tracking and recognition platform. It splits responsibilities into deployable projects for specialized detection and inference tasks. The workflow has been modernized to output standardized JSON detection payloads in place of legacy CSV files.
+MultiModal-Detection is a comprehensive computer vision platform for face detection, license plate recognition (ANPR), and object detection. It splits responsibilities into deployable projects for specialized detection and inference tasks. The workflow has been modernized to output standardized JSON detection payloads in place of legacy CSV files.
 
 ## Repository Layout
 
 ```text
-TagTrack-AI_v2/
+MultiModal-Detection/
 ├── FACE_DETECTION/
 │   └── retinaface/                # Face detection models and services
 ├── PLATE_AND_OBJECT_DETECTION/

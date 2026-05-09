@@ -1199,7 +1199,7 @@ requires-dist = [
     { name = "opencv-python", specifier = ">=4.13.0.92" },
     { name = "paddleocr", specifier = "==3.3.2" },
     { name = "paddlepaddle", specifier = "==3.2.2" },
-    { name = "tritonclient", extras = ["grpc", "http"], specifier = ">=2.68.0" },
+    { name = "tritonclient", extras = ["grpc", "http"], specifier = ">=2.62.0" },
 ]
 
 [package.metadata.requires-dev]

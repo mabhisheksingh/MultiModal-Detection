@@ -18,10 +18,10 @@ import tritonclient.grpc as grpc_client
 TRITON_SERVER_URL = "localhost:8001"  # gRPC port
 
 # Model repository path
-MODEL_REPO_PATH = Path("/Users/abhishek/PycharmProjects/TagTrack-AI_v2/PLATE_AND_OBJECT_DETECTION/triton_server/model_repository")
+MODEL_REPO_PATH = Path("/Users/abhishek/PycharmProjects/MultiModal-Detection/PLATE_AND_OBJECT_DETECTION/triton_server/model_repository")
 
 # Test image path (modify as needed)
-TEST_IMAGE_PATH = "/Users/abhishek/PycharmProjects/TagTrack-AI_v2/PLATE_AND_OBJECT_DETECTION/triton_server/app/Cars.jpg"
+TEST_IMAGE_PATH = "/Users/abhishek/PycharmProjects/MultiModal-Detection/PLATE_AND_OBJECT_DETECTION/triton_server/app/Cars.jpg"
 
 
 class TritonClient:

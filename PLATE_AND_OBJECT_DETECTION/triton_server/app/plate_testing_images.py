@@ -159,9 +159,9 @@ def main():
 
     BASE_DIR = Path(__file__).resolve().parent
     image_path = BASE_DIR / "frame_0000.jpg"
-    # image_path ="/home/harsha/abhishek/TagTrack-AI_v2-master/triton-server/app/frame_0000.jpg"
-    # image_path="abhishek/TagTrack-AI_v2-master/triton_server/app/frame_0000.jpg"
-    # image_path="abhishek/TagTrack-AI_v2-master/triton-server/app/Cars.jpg"
+    # image_path ="/home/harsha/abhishek/MultiModal-Detection-master/triton-server/app/frame_0000.jpg"
+    # image_path="abhishek/MultiModal-Detection-master/triton_server/app/frame_0000.jpg"
+    # image_path="abhishek/MultiModal-Detection-master/triton-server/app/Cars.jpg"
 
     # Run test with plate detection model and very low threshold to see everything
     client.test_inference("plate_region_detection_rt_detr", image_path, conf_threshold=0.1)

@@ -59,7 +59,7 @@ def visualize_detections(image_path, data_path, output_path, confidence_threshol
 
 if __name__ == "__main__":
     # Define paths
-    base_path = Path("/Users/abhishek/PycharmProjects/TagTrack-AI_v2/triton_server/app")
+    base_path = Path("/Users/abhishek/PycharmProjects/MultiModal-Detection/PLATE_AND_OBJECT_DETECTION/triton_server/app")
     img_in = base_path / "frame_0000.jpg"
     data_in = base_path / "xyxrc.txt"
     img_out = base_path / "frame_0000_marked.jpg"
