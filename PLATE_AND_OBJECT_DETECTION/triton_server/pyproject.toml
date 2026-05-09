@@ -2,26 +2,20 @@
 name = "triton-inference-server"
 version = "0.1.0"
 description = "This project start triton inference server currently it used numpy version 1.26.4 but need to migrate to numpy version 2.x."
-requires-python = "==3.10.13"
+requires-python = "==3.12.6"
 dependencies = [
-    "numpy==1.26.4",
-    "opencv-python-headless>=4.11.0.86",
-    # paddleocr
-    "paddlepaddle-gpu==3.2.0", # for GPU inference
-    "paddleocr==3.3.3",
-
+    "opencv-python>=4.13.0.92",
+    "paddleocr==3.3.2",
+    "paddlepaddle==3.2.2",
+    "tritonclient[grpc,http]>=2.68.0",
 ]
 
 [dependency-groups]
 dev = [
-    "tritonclient[grpc,http]==2.39.0",
-    "ultralytics>=8.4.20",
-    "pytest>=9.0.2",
+    "pytest>=9.0.3",
 ]
 
 
-[tool.uv]
-environments = ["sys_platform == 'linux' and python_full_version == '3.10.13'"]
 
 [project.scripts]
 test-image = "app.test_images:main"
@@ -32,7 +26,3 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
-
-[tool.uv.sources]
-"paddlepaddle-gpu" = { path = "../paddle_wheels/paddlepaddle_gpu-3.2.0-cp310-cp310-linux_x86_64.whl" }
-"numpy" = { path = "../paddle_wheels/numpy_1_26_4/numpy-1.26.4-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl" }

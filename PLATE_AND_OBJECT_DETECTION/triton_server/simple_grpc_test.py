@@ -25,7 +25,7 @@ def simple_grpc_test():
             print("Server not live")
             return
 
-        if not client.is_model_ready("paddle_ocr_gpu"):
+        if not client.is_model_ready("paddle_ocr_gpu.disabled_not_working in mac"):
             print("Model not ready")
             return
 
@@ -47,7 +47,7 @@ def simple_grpc_test():
         # Send request with timing
         request_id = f"test_request_{np.random.randint(1000, 9999)}"
         start_time = time.time()
-        result = client.infer(model_name="paddle_ocr_gpu", inputs=inputs, outputs=outputs, model_version="1", request_id=request_id)
+        result = client.infer(model_name="paddle_ocr_gpu.disabled_not_working in mac", inputs=inputs, outputs=outputs, model_version="1", request_id=request_id)
         end_time = time.time()
         inference_time = (end_time - start_time) * 1000  # Convert to milliseconds
         print(f"Inference time: {inference_time:.2f} ms")

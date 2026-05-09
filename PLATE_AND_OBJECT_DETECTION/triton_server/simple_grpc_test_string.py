@@ -18,7 +18,7 @@ def simple_grpc_test():
         if not client.is_server_live():
             print("Server not live")
             return
-        if not client.is_model_ready("paddle_ocr_gpu"):
+        if not client.is_model_ready("paddle_ocr_gpu.disabled_not_working in mac"):
             print("Model not ready")
             return
 
@@ -40,7 +40,7 @@ def simple_grpc_test():
         # --- Infer ---
         print("Sending request...")
         result = client.infer(
-            model_name="paddle_ocr_gpu",
+            model_name="paddle_ocr_gpu.disabled_not_working in mac",
             inputs=[inp],
             outputs=[out],
             model_version="1",

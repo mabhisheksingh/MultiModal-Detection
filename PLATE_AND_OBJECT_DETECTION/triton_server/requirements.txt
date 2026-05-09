@@ -1,9 +1,3 @@
-#/tmp/paddle_wheels/numpy_1_26_4/numpy-1.26.4-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
-# 25.12 support version 10
-#root@c99ab889eb4a:/opt/tritonserver# python3 -c "import numpy; print(numpy.__version__)"
-#2.4.4
-#root@c99ab889eb4a:/opt/tritonserver#
-#/tmp/paddle_wheels/paddlepaddle_gpu-3.2.0-cp310-cp310-linux_x86_64.whl #for GPU oly
-paddlepaddle==3.2.0  #For CPU only
-paddleocr==3.3.3
-opencv-python-headless>=4.11.0.86
+paddleocr==3.3.2
+paddlepaddle==3.2.2
+opencv-python>=4.11.0.86

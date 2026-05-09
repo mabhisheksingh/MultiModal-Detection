@@ -8,7 +8,6 @@ ENV MODEL_REPOSITORY=/models \
     TRITON_GRPC_PORT=9001 \
     TRITON_METRICS_PORT=9002 \
     TRITON_LOG_VERBOSE=1 \
-    PADDLE_USE_GPU=1 \
     PADDLE_HOME=/root/.paddle
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
