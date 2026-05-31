@@ -1,0 +1,38 @@
+
+services:
+  anpr-api:
+    # Change this tag to use a different version (e.g., v1.0.0, latest, slim)
+    image: anpr-inference-service:v1.2.0
+    # Uncomment to build locally instead of pulling image
+    # build:
+    #   context: ../services/anpr_object
+    #   dockerfile: Dockerfile
+    #   target: runtime
+    container_name: ${ANPR_CONTAINER_NAME:-anpr_object-api}
+    gpus: all
+    shm_size: "1gb"
+    ports:
+      - "9003:9003"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - TRITON_SERVER_URL=${TRITON_SERVER_URL:-host.docker.internal:9001}
+      - BATCH_SIZE=${BATCH_SIZE:-8}
+      - CONFIDENCE_THRESHOLD=${CONFIDENCE_THRESHOLD:-0.5}
+      - PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True
+      - PADDLE_HOME=/root/.paddle
+      - PADDLE_PDX_MODEL_HOME=/root/.paddlex
+      - HF_HOME=/root/.cache/huggingface
+    volumes:
+      - ${ANPR_DATA_DIR:-../services/anpr_object/data}:/app/data
+      - anpr_paddle_cache:/root/.paddle
+      - anpr_paddlex_cache:/root/.paddlex
+      - anpr_hf_cache:/root/.cache/huggingface
+    env_file:
+      - ${ANPR_ENV_FILE:-../services/anpr_object/.env}
+    restart: unless-stopped
+
+volumes:
+  anpr_paddle_cache:
+  anpr_paddlex_cache:
+  anpr_hf_cache:

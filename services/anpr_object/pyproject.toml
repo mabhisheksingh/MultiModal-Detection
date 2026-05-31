@@ -1,0 +1,58 @@
+[project]
+name = "anpr_drone"
+version = "0.1.0"
+description = "ANPR inference service for vehicle and number plate recognition using Triton, Ultralytics, and PaddleOCR."
+authors = [{name = "abhishek singh"}]
+requires-python = "==3.10.13"
+dependencies = [
+    "paddlepaddle-gpu==3.2.0", # for GPU inference
+#    "paddlepaddle==3.2.0", # for CPU inference
+    "paddleocr==3.3.3",
+    "tritonclient[grpc]==2.65.0",
+    "numpy==1.26.4",
+    "fastapi>=0.135.1",
+    "gunicorn>=23.0.0",
+    "pydantic==2.12.5",
+    "pydantic-settings==2.13.1",
+    "structlog==25.5.0",
+    "python-multipart==0.0.22",
+    "setuptools>=82.0.0",
+    "python-dotenv>=1.2.1",
+    "ultralytics>=8.4.21",
+    "lap>=0.5.13",
+    "sqlalchemy>=2.0.48",
+    "opencv-python-headless>=4.11.0.86",
+]
+
+# 👇 THIS IS THE IMPORTANT PART
+index-url = "https://pypi.org/simple"
+find-links = ["../../triton_server/paddle_wheels"]
+
+
+[project.scripts]
+anpr-dev = "app.main:start_server"
+anpr-prod = "app.main:start_gunicorn"
+
+[dependency-groups]
+dev = [
+    "black==26.3.1",
+    "aiohttp>=3.12.15",
+    "pytest==9.0.2",
+    "pytest-cov==6.2.1",
+    "requests>=2.32.5",
+    "ruff==0.12.12",
+    "uvicorn[standard]>=0.41.0",
+]
+
+[tool.uv]
+environments = ["sys_platform == 'linux' and python_full_version == '3.10.13'"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.uv.sources]
+"paddlepaddle-gpu" = { path = "../../triton_server/paddle_wheels/paddlepaddle_gpu-3.2.0-cp310-cp310-linux_x86_64.whl" }
