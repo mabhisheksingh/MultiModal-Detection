@@ -1,12 +1,10 @@
 """Vehicle detection client - calls vehicle_detection_rt_detr on Triton via gRPC."""
 
-import numpy as np
-import cv2
-from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
+from typing import Any
 
-from utils.triton_client import TritonClient
+import numpy as np
 from utils.image_utils import load_image
+from utils.triton_client import TritonClient
 
 
 class VehicleDetector:
@@ -35,20 +33,20 @@ class VehicleDetector:
         14: "vehicle fallback",
     }
 
-    def __init__(self, triton_client: Optional[TritonClient] = None, server_url: str = "127.0.0.1:9001"):
+    def __init__(self, triton_client: TritonClient | None = None, server_url: str = "127.0.0.1:9001"):
         self.client = triton_client or TritonClient(server_url)
 
-    def preprocess(self, image: np.ndarray) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def preprocess(self, image: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
         """Letterbox preprocess for RT-DETR."""
         return self.client.letterbox_preprocess(image, self.INPUT_SIZE)
 
     def postprocess(
         self,
         raw_output: np.ndarray,
-        meta: Dict[str, Any],
-        original_shape: Tuple[int, int],
+        meta: dict[str, Any],
+        original_shape: tuple[int, int],
         conf_thresh: float = 0.4,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Parse RT-DETR [1, 300, N] output to detection list."""
         detections = raw_output[0]
         results = []
@@ -67,15 +65,17 @@ class VehicleDetector:
             x2 = ((cx + w / 2) * 640 - meta["x_off"]) / meta["scale"]
             y2 = ((cy + h / 2) * 640 - meta["y_off"]) / meta["scale"]
 
-            results.append({
-                "bbox": [int(x1), int(y1), int(x2), int(y2)],
-                "conf": conf,
-                "class_id": class_id,
-                "class_name": self.CLASS_MAP.get(class_id, "unknown"),
-            })
+            results.append(
+                {
+                    "bbox": [int(x1), int(y1), int(x2), int(y2)],
+                    "conf": conf,
+                    "class_id": class_id,
+                    "class_name": self.CLASS_MAP.get(class_id, "unknown"),
+                }
+            )
         return results
 
-    def detect(self, image: np.ndarray, conf_thresh: float = 0.4) -> List[Dict[str, Any]]:
+    def detect(self, image: np.ndarray, conf_thresh: float = 0.4) -> list[dict[str, Any]]:
         """Run vehicle detection on an image."""
         blob, meta = self.preprocess(image)
         inp = self.client.create_input(blob, self.INPUT_NAME)
@@ -84,7 +84,7 @@ class VehicleDetector:
         raw = response.as_numpy(self.OUTPUT_NAME)
         return self.postprocess(raw, meta, image.shape[:2], conf_thresh)
 
-    def detect_from_path(self, image_source: str, conf_thresh: float = 0.4) -> List[Dict[str, Any]]:
+    def detect_from_path(self, image_source: str, conf_thresh: float = 0.4) -> list[dict[str, Any]]:
         """Load image (from assets/ if just a filename) and run detection."""
         img = load_image(image_source)
         return self.detect(img, conf_thresh)
@@ -92,6 +92,7 @@ class VehicleDetector:
 
 def main():
     import sys
+
     detector = VehicleDetector()
     img_name = "frame_0000.jpg"
     if len(sys.argv) > 1:

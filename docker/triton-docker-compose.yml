@@ -2,7 +2,8 @@
 services:
   triton-server:
     # Use pre-built Docker image
-    image: triton-server-custom:latest
+#    image: triton-server-custom:latest
+    image: triton-server:v3.0.0
 
     container_name: triton-server-v2
     ports:
@@ -37,11 +38,11 @@ services:
       --metrics-port=8002
       --allow-metrics=true
       --allow-gpu-metrics=true
-      --log-verbose=0
+      --log-verbose=1
       --log-info=true
       --log-warning=true
       --log-error=true
-      --exit-on-error=false
+      --exit-on-error=true
       --model-control-mode=none
       --grpc-infer-allocation-pool-size=16
       --grpc-max-response-pool-size=16

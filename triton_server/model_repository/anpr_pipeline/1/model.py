@@ -1,11 +1,12 @@
+import base64
+import concurrent.futures
 import json
+import math
 import re
 import time
-import math
-import base64
+
 import cv2
 import numpy as np
-import concurrent.futures
 import triton_python_backend_utils as pb_utils
 
 
@@ -95,9 +96,7 @@ class TritonPythonModel:
         self.clahe_strong = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
         self.clahe_light = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
 
-        self.cpu_memory = pb_utils.PreferredMemory(
-            pb_utils.TRITONSERVER_MEMORY_CPU, 0
-        )
+        self.cpu_memory = pb_utils.PreferredMemory(pb_utils.TRITONSERVER_MEMORY_CPU, 0)
 
         try:
             config = json.loads(args.get("model_config", "{}"))
@@ -142,6 +141,10 @@ class TritonPythonModel:
         """
         Executes the pipeline for every incoming request.
         """
+        start = time.perf_counter()
+        pb_utils.Logger.log_info("-" * 100)
+        pb_utils.Logger.log_info("[ANPR_PIPELINE] execution start.")
+        pb_utils.Logger.log_info("-" * 100)
         responses = []
         for request_index, request in enumerate(requests):
             execute_start = time.perf_counter()
@@ -153,10 +156,10 @@ class TritonPythonModel:
             request_error = None
             request_id = request.request_id()
 
-            start_msg = f"ANPR EXEC START | Request ID: {request_id if request_id is not None else '-'}"
-            pb_utils.Logger.log_info(f"{self.log_border}")
+            start_msg = f"ANPR start request id {request_id if request_id is not None else '-'}"
+            pb_utils.Logger.log_info("-" * 100)
             pb_utils.Logger.log_info(f"{start_msg}")
-            pb_utils.Logger.log_info(f"{self.log_border}")
+            pb_utils.Logger.log_info("-" * 100)
 
             try:
                 batch_results = self._run_batched_pipeline(batch_images, request_id=request_id)
@@ -179,10 +182,10 @@ class TritonPythonModel:
 
             if request_error is not None:
                 duration_ms = (time.perf_counter() - execute_start) * 1000.0
-                end_msg = f"ANPR EXEC END | Request: {request_index} | ID: {request_id if request_id is not None else '-'} | Total: {duration_ms:.2f}ms"
-                pb_utils.Logger.log_info(f"{self.log_border}")
+                end_msg = f"ANPR end request id {request_id if request_id is not None else '-'} and time take {duration_ms:.2f}ms"
+                pb_utils.Logger.log_info("-" * 100)
                 pb_utils.Logger.log_info(f"{end_msg}")
-                pb_utils.Logger.log_info(f"{self.log_border}")
+                pb_utils.Logger.log_info("-" * 100)
                 responses.append(pb_utils.InferenceResponse(error=request_error))
                 continue
 
@@ -190,11 +193,17 @@ class TritonPythonModel:
             responses.append(pb_utils.InferenceResponse(output_tensors=[out_tensor]))
 
             duration_ms = (time.perf_counter() - execute_start) * 1000.0
-            end_msg = f"ANPR EXEC END | Request ID: {request_id if request_id is not None else '-'} | Total: {duration_ms:.2f}ms"
-            pb_utils.Logger.log_info(f"{self.log_border}")
+            end_msg = (
+                f"ANPR end request id {request_id if request_id is not None else '-'} and time take {duration_ms:.2f}ms"
+            )
+            pb_utils.Logger.log_info("-" * 100)
             pb_utils.Logger.log_info(f"{end_msg}")
-            pb_utils.Logger.log_info(f"{self.log_border}")
+            pb_utils.Logger.log_info("-" * 100)
 
+        duration_ms = (time.perf_counter() - start) * 1000.0
+        pb_utils.Logger.log_info("-" * 100)
+        pb_utils.Logger.log_info(f"[ANPR_PIPELINE] execution end and total time take {duration_ms:.2f}ms.")
+        pb_utils.Logger.log_info("-" * 100)
         return responses
 
     # ---------------------------------------------------------
@@ -224,19 +233,17 @@ class TritonPythonModel:
         if veh_response.has_error():
             raise pb_utils.TritonModelException(veh_response.error().message())
 
-        veh_output = pb_utils.get_output_tensor_by_name(
-            veh_response, self.vehicle_output_name
-        ).as_numpy()
+        veh_output = pb_utils.get_output_tensor_by_name(veh_response, self.vehicle_output_name).as_numpy()
 
         # Parse vehicle detections for each frame
         batch_vehicles = []
         for batch_idx, original_bgr in enumerate(batch_images):
             valid_vehicles = self._parse_rt_detr(
-                veh_output[batch_idx: batch_idx + 1],
+                veh_output[batch_idx : batch_idx + 1],
                 original_bgr.shape[1],
                 original_bgr.shape[0],
                 self.vehicle_conf_threshold,
-                preprocess_meta=batch_meta[batch_idx] if batch_meta else None
+                preprocess_meta=batch_meta[batch_idx] if batch_meta else None,
             )
             batch_vehicles.append(valid_vehicles)
 
@@ -251,18 +258,23 @@ class TritonPythonModel:
                 vehicle_class_name = str(vehicle.get("class_name", "")).strip().lower()
                 vehicle_conf = vehicle.get("conf", 0.0)
                 # Filter by class name AND confidence threshold
-                if vehicle_class_name in self.plate_candidate_vehicle_classes and vehicle_conf >= self.vehicle_conf_threshold:
+                if (
+                    vehicle_class_name in self.plate_candidate_vehicle_classes
+                    and vehicle_conf >= self.vehicle_conf_threshold
+                ):
                     # Crop the vehicle
                     vx1, vy1, vx2, vy2 = vehicle["bbox"]
                     vehicle_crop = original_bgr[vy1:vy2, vx1:vx2]
                     if vehicle_crop.size > 0:
-                        eligible_vehicle_crops.append({
-                            "frame_idx": batch_idx,
-                            "veh_idx": veh_idx,
-                            "crop": vehicle_crop,
-                            "offset": (vx1, vy1),
-                            "vehicle": vehicle
-                        })
+                        eligible_vehicle_crops.append(
+                            {
+                                "frame_idx": batch_idx,
+                                "veh_idx": veh_idx,
+                                "crop": vehicle_crop,
+                                "offset": (vx1, vy1),
+                                "vehicle": vehicle,
+                            }
+                        )
 
         all_valid_plates = []
         plate_ms = 0.0
@@ -272,9 +284,7 @@ class TritonPythonModel:
             crop_tensor, crop_meta = self._preprocess_for_detector(crop_images)
             plate_exec_start = time.perf_counter()
 
-            pb_utils.Logger.log_verbose(
-                f"[ANPR_PIPELINE] [plate_detection] eligible_vehicles={len(crop_images)}"
-            )
+            pb_utils.Logger.log_verbose(f"[ANPR_PIPELINE] [plate_detection] eligible_vehicles={len(crop_images)}")
 
             plate_output_chunks = []
 
@@ -285,7 +295,7 @@ class TritonPythonModel:
                 f"[ANPR_PIPELINE] [plate_detection] sending {len(crop_images)} vehicles in {num_chunks} chunk(s)"
             )
             for i in range(0, len(crop_images), max_plate_batch_size):
-                chunk_tensor = crop_tensor[i:i + max_plate_batch_size]
+                chunk_tensor = crop_tensor[i : i + max_plate_batch_size]
                 chunk_size = len(chunk_tensor)
                 pb_utils.Logger.log_verbose(
                     f"[ANPR_PIPELINE] [plate_detection] chunk {i // max_plate_batch_size + 1}/{num_chunks} with {chunk_size} vehicles"
@@ -302,9 +312,7 @@ class TritonPythonModel:
                 if plate_response.has_error():
                     raise pb_utils.TritonModelException(plate_response.error().message())
 
-                chunk_output = pb_utils.get_output_tensor_by_name(
-                    plate_response, self.plate_output_name
-                ).as_numpy()
+                chunk_output = pb_utils.get_output_tensor_by_name(plate_response, self.plate_output_name).as_numpy()
                 plate_output_chunks.append(chunk_output)
 
             plate_ms = (time.perf_counter() - plate_exec_start) * 1000.0
@@ -318,11 +326,11 @@ class TritonPythonModel:
             for crop_idx, crop_item in enumerate(eligible_vehicle_crops):
                 crop_h, crop_w = crop_item["crop"].shape[:2]
                 valid_plates = self._parse_plate_output_full_frame(
-                    plate_output[crop_idx: crop_idx + 1],
+                    plate_output[crop_idx : crop_idx + 1],
                     crop_w,
                     crop_h,
                     self.plate_conf_threshold,
-                    preprocess_meta=crop_meta[crop_idx]
+                    preprocess_meta=crop_meta[crop_idx],
                 )
 
                 # Map plate coordinates from crop-space back to full-frame-space
@@ -375,7 +383,7 @@ class TritonPythonModel:
                     "vehicle_confidence": float(vehicle["conf"]),
                     "vehicle_class": str(vehicle.get("class_name", "unknown")),
                     "vehicle_class_id": int(vehicle.get("class_id", -1)),
-                    "plates": []
+                    "plates": [],
                 }
 
                 ocr_status_messages = []
@@ -407,7 +415,9 @@ class TritonPythonModel:
 
                 vx1, vy1, vx2, vy2 = vehicle["bbox"]
                 vehicle_crop_for_ocr = original_bgr[vy1:vy2, vx1:vx2]
-                vehicle_crop_h, vehicle_crop_w = vehicle_crop_for_ocr.shape[:2] if vehicle_crop_for_ocr.size > 0 else (0, 0)
+                vehicle_crop_h, vehicle_crop_w = (
+                    vehicle_crop_for_ocr.shape[:2] if vehicle_crop_for_ocr.size > 0 else (0, 0)
+                )
 
                 for plate in matched_plates:
                     plate_bbox = plate["bbox"]
@@ -507,7 +517,7 @@ class TritonPythonModel:
 
             chunks = []
             for i in range(0, num_items, chunk_size):
-                chunks.append(all_pending_ocr_items[i: i + chunk_size])
+                chunks.append(all_pending_ocr_items[i : i + chunk_size])
 
             def process_ocr_chunk(chunk):
                 crops = [self._normalize_plate_crop_for_ocr(item["plate_crop"]) for item in chunk]
@@ -540,12 +550,10 @@ class TritonPythonModel:
                         )
                         continue
 
-                    ocr_raw_output = pb_utils.get_output_tensor_by_name(
-                        ocr_response, self.ocr_output_name
-                    ).as_numpy()
+                    ocr_raw_output = pb_utils.get_output_tensor_by_name(ocr_response, self.ocr_output_name).as_numpy()
 
                     ocr_results = self._parse_ocr_outputs(ocr_raw_output)
-                    for ocr_idx, ocr_res in zip(indices, ocr_results):
+                    for ocr_idx, ocr_res in zip(indices, ocr_results, strict=False):
                         ocr_text, ocr_conf = ocr_res
                         for item in all_pending_ocr_items:
                             if item["ocr_idx"] == ocr_idx:
@@ -568,10 +576,7 @@ class TritonPythonModel:
 
         batch_results = []
         for detections in batch_final_detections:
-            batch_results.append(json.dumps({
-                "status": "success",
-                "detections": detections
-            }))
+            batch_results.append(json.dumps({"status": "success", "detections": detections}))
 
         total_ms = (time.perf_counter() - total_start) * 1000.0
         pb_utils.Logger.log_warn(
@@ -640,15 +645,17 @@ class TritonPythonModel:
 
             y_offset = (self.detector_input_size[0] - new_height) // 2
             x_offset = (self.detector_input_size[1] - new_width) // 2
-            padded[y_offset: y_offset + new_height, x_offset: x_offset + new_width] = resized
+            padded[y_offset : y_offset + new_height, x_offset : x_offset + new_width] = resized
             batch.append(padded)
-            batch_meta.append({
-                "scale": scale,
-                "x_offset": x_offset,
-                "y_offset": y_offset,
-                "target_width": self.detector_input_size[1],
-                "target_height": self.detector_input_size[0],
-            })
+            batch_meta.append(
+                {
+                    "scale": scale,
+                    "x_offset": x_offset,
+                    "y_offset": y_offset,
+                    "target_width": self.detector_input_size[1],
+                    "target_height": self.detector_input_size[0],
+                }
+            )
 
         batch_tensor = np.stack(batch, axis=0)
         batch_tensor = batch_tensor.transpose((0, 3, 1, 2)).astype(np.float32) / 255.0
@@ -744,9 +751,7 @@ class TritonPythonModel:
             x_offset = y_offset = 0.0
             target_w, target_h = img_w, img_h
 
-        for bbox, score, class_id in zip(
-                valid_bboxes_normalized, valid_confidences, valid_class_ids
-        ):
+        for bbox, score, class_id in zip(valid_bboxes_normalized, valid_confidences, valid_class_ids, strict=False):
             cx, cy, w, h = bbox
             cx_px = cx * target_w
             cy_px = cy * target_h
@@ -764,14 +769,14 @@ class TritonPythonModel:
             y2 = min(img_h, int((y2_padded - y_offset) / scale))
 
             if x2 > x1 and y2 > y1:
-                results.append({
-                    "bbox": [x1, y1, x2, y2],
-                    "conf": float(score),
-                    "class_id": int(class_id),
-                    "class_name": self.vehicle_class_id_name_map.get(
-                        int(class_id), "unknown"
-                    ),
-                })
+                results.append(
+                    {
+                        "bbox": [x1, y1, x2, y2],
+                        "conf": float(score),
+                        "class_id": int(class_id),
+                        "class_name": self.vehicle_class_id_name_map.get(int(class_id), "unknown"),
+                    }
+                )
 
         return results
 
@@ -821,7 +826,7 @@ class TritonPythonModel:
         else:
             normalized_format = "xyxy_abs"
 
-        for box, conf, class_id in zip(boxes, confidences, class_ids):
+        for box, conf, class_id in zip(boxes, confidences, class_ids, strict=False):
             if normalized_format == "xyxy_abs":
                 x1_padded, y1_padded, x2_padded, y2_padded = [float(v) for v in box]
             elif normalized_format == "xyxy":
@@ -862,9 +867,7 @@ class TritonPythonModel:
             if aspect_ratio < 1.2 or aspect_ratio > 10.0:
                 continue
 
-            results.append(
-                {"bbox": [x1, y1, x2, y2], "conf": float(conf), "class_id": int(class_id)}
-            )
+            results.append({"bbox": [x1, y1, x2, y2], "conf": float(conf), "class_id": int(class_id)})
 
         return results
 
@@ -1023,9 +1026,7 @@ class TritonPythonModel:
         try:
             success, buffer = cv2.imencode(".jpg", image)
             if not success:
-                pb_utils.Logger.log_error(
-                    f"[ANPR_PIPELINE] [OCR][REQ-{req_idx}][IMG-{img_idx}] Failed to encode image"
-                )
+                pb_utils.Logger.log_error(f"[ANPR_PIPELINE] [OCR][REQ-{req_idx}][IMG-{img_idx}] Failed to encode image")
                 return None
 
             img_base64 = base64.b64encode(buffer).decode("utf-8")

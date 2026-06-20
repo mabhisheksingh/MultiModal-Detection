@@ -1,12 +1,11 @@
 """OCR client via Triton gRPC - calls paddle_ocr_gpu_batched model."""
 
-import numpy as np
-import cv2
-from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Any
 
-from utils.triton_client import TritonClient
+import cv2
+import numpy as np
 from utils.image_utils import load_image
+from utils.triton_client import TritonClient
 
 
 class TritonOCR:
@@ -16,7 +15,7 @@ class TritonOCR:
     INPUT_NAME = "INPUT1"
     OUTPUT_NAME = "OUTPUT0"
 
-    def __init__(self, triton_client: Optional[TritonClient] = None, server_url: str = "127.0.0.1:9001"):
+    def __init__(self, triton_client: TritonClient | None = None, server_url: str = "127.0.0.1:9001"):
         self.client = triton_client or TritonClient(server_url)
 
     def preprocess(self, image: np.ndarray) -> np.ndarray:
@@ -27,7 +26,7 @@ class TritonOCR:
             image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
         return image
 
-    def recognize(self, image: np.ndarray) -> List[Dict[str, Any]]:
+    def recognize(self, image: np.ndarray) -> list[dict[str, Any]]:
         """Run OCR on a single image. Returns list of {text, confidence}."""
         img = self.preprocess(image)
         inp = self.client.create_input(np.expand_dims(img, axis=0), self.INPUT_NAME)
@@ -47,7 +46,7 @@ class TritonOCR:
                 results.append({"text": text, "confidence": 0.0})
         return results
 
-    def recognize_batch(self, images: List[np.ndarray]) -> List[List[Dict[str, Any]]]:
+    def recognize_batch(self, images: list[np.ndarray]) -> list[list[dict[str, Any]]]:
         """Run OCR on a batch of images."""
         batch = np.array([self.preprocess(img) for img in images])
         inp = self.client.create_input(batch, self.INPUT_NAME)
@@ -58,7 +57,7 @@ class TritonOCR:
         all_results = []
         for item in raw:
             texts = []
-            for t in item.flatten() if hasattr(item, 'flatten') else [item]:
+            for t in item.flatten() if hasattr(item, "flatten") else [item]:
                 text = str(t)
                 if "confidence:" in text:
                     parts = text.rsplit("confidence:", 1)
@@ -73,6 +72,7 @@ class TritonOCR:
 
 def main():
     import sys
+
     ocr = TritonOCR()
     img_name = "car1_MH46X9996.jpg"
     if len(sys.argv) > 1:

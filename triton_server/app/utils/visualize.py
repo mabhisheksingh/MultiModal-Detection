@@ -1,15 +1,16 @@
 """Visualization helpers for bounding boxes and detection results."""
 
 import json
+from pathlib import Path
+from typing import Any
+
 import cv2
 import numpy as np
-from pathlib import Path
-from typing import List, Dict, Any
 
 
 def draw_detections(
     image: np.ndarray,
-    detections: List[Dict[str, Any]],
+    detections: list[dict[str, Any]],
     color: tuple = (0, 255, 0),
     thickness: int = 2,
     show_conf: bool = True,
@@ -40,7 +41,7 @@ def draw_normalized_detections(
 
     img_h, img_w = image.shape[:2]
 
-    with open(data_path, "r") as f:
+    with open(data_path) as f:
         try:
             raw_data = json.load(f)
         except json.JSONDecodeError:

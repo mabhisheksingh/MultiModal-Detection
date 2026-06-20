@@ -5,10 +5,10 @@ services:
     image: anpr-inference-service:v1.2.0
     # Uncomment to build locally instead of pulling image
     # build:
-    #   context: ../services/anpr_object
+    #   context: ../modules/anpr
     #   dockerfile: Dockerfile
     #   target: runtime
-    container_name: ${ANPR_CONTAINER_NAME:-anpr_object-api}
+    container_name: ${ANPR_CONTAINER_NAME:-anpr-api}
     gpus: all
     shm_size: "1gb"
     ports:
@@ -24,12 +24,12 @@ services:
       - PADDLE_PDX_MODEL_HOME=/root/.paddlex
       - HF_HOME=/root/.cache/huggingface
     volumes:
-      - ${ANPR_DATA_DIR:-../services/anpr_object/data}:/app/data
+      - ${ANPR_DATA_DIR:-../modules/anpr/data}:/app/data
       - anpr_paddle_cache:/root/.paddle
       - anpr_paddlex_cache:/root/.paddlex
       - anpr_hf_cache:/root/.cache/huggingface
     env_file:
-      - ${ANPR_ENV_FILE:-../services/anpr_object/.env}
+      - ${ANPR_ENV_FILE:-../modules/anpr/.env}
     restart: unless-stopped
 
 volumes:

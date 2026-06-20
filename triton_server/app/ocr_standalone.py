@@ -1,13 +1,12 @@
 """Standalone OCR using local PaddleOCR (no Triton server required)."""
 
-import numpy as np
-import cv2
 import os
 from statistics import mean
-from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any
 
-from utils.image_utils import load_image, load_image_rgb
+import cv2
+import numpy as np
+from utils.image_utils import load_image_rgb
 
 os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "True"
 
@@ -58,7 +57,7 @@ class StandaloneOCR:
         sharpened = cv2.filter2D(enhanced, -1, kernel)
         return cv2.cvtColor(sharpened, cv2.COLOR_GRAY2BGR)
 
-    def recognize(self, image: np.ndarray) -> List[Dict[str, Any]]:
+    def recognize(self, image: np.ndarray) -> list[dict[str, Any]]:
         """Run OCR on an image."""
         processed = self.preprocess(image)
         result = self.reader.predict(
@@ -83,6 +82,7 @@ class StandaloneOCR:
 
 def main():
     import sys
+
     ocr = StandaloneOCR(use_cpu=True)
     img_name = "car1_MH46X9996.jpg"
     if len(sys.argv) > 1:

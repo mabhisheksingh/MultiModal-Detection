@@ -2,20 +2,18 @@
 
 import sys
 import time
-from pathlib import Path
-from typing import Dict
 
-from utils.triton_client import TritonClient
-from utils.image_utils import load_image
-from vehicle_detector import VehicleDetector
-from plate_detector import PlateDetector
 from ocr_triton import TritonOCR
+from plate_detector import PlateDetector
+from utils.image_utils import load_image
+from utils.triton_client import TritonClient
+from vehicle_detector import VehicleDetector
 
 TRITON_URL = "localhost:9001"
 TEST_IMAGE = "frame_0000.jpg"
 
 
-def print_result(name: str, result: Dict):
+def print_result(name: str, result: dict):
     emoji = {"success": "✓", "error": "✗", "inference_failed": "✗", "not_tested": "-"}
     print(f"\n{emoji.get(result['status'], '?')} {name}")
     print(f"  Status: {result['status']}")

@@ -1,15 +1,15 @@
 """Image loading utilities - resolves image names to assets folder paths."""
 
+from pathlib import Path
+
 import cv2
 import numpy as np
-from pathlib import Path
-from typing import Union, Optional
 
 # Base assets directory relative to this file: utils/../assets
 _ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 
 
-def load_image(image_source: Union[str, Path]) -> np.ndarray:
+def load_image(image_source: str | Path) -> np.ndarray:
     """
     Load an image from the assets folder or an absolute path.
 
@@ -42,13 +42,13 @@ def load_image(image_source: Union[str, Path]) -> np.ndarray:
     return img
 
 
-def load_image_rgb(image_source: Union[str, Path]) -> np.ndarray:
+def load_image_rgb(image_source: str | Path) -> np.ndarray:
     """Load image and convert to RGB."""
     img = load_image(image_source)
     return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
 
-def save_image(image: np.ndarray, filename: str, subdir: Optional[str] = None) -> Path:
+def save_image(image: np.ndarray, filename: str, subdir: str | None = None) -> Path:
     """
     Save image to the assets folder.
 

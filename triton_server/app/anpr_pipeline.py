@@ -1,95 +1,103 @@
-"""ANPR Pipeline - orchestrates vehicle detection -> plate detection -> OCR via Triton gRPC."""
+"""ANPR Pipeline - sends images to server-side anpr_pipeline model."""
 
-import numpy as np
-import cv2
+import json
+import time
+import uuid
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
+from typing import Any
 
-from utils.triton_client import TritonClient
+import cv2
+import numpy as np
 from utils.image_utils import load_image
-from vehicle_detector import VehicleDetector
-from plate_detector import PlateDetector
-from ocr_triton import TritonOCR
+from utils.triton_client import TritonClient
+
+# Static configuration
+DEFAULT_SERVER_URL = "127.0.0.1:8001"
+DEFAULT_IMAGE_NAME = "frame_0000.jpg"
+DEFAULT_OUTPUT_PATH = "assets/car1_MH46X9996.jpg"
+DEFAULT_MODEL_NAME = "anpr_pipeline"
 
 
 class ANPRPipeline:
-    """End-to-end ANPR pipeline using Triton models."""
+    """Client for server-side ANPR pipeline model."""
 
-    def __init__(self, server_url: str = "127.0.0.1:8001"):
+    def __init__(self, server_url: str = DEFAULT_SERVER_URL, model_name: str = DEFAULT_MODEL_NAME):
         self.client = TritonClient(server_url)
-        self.vehicle = VehicleDetector(self.client)
-        self.plate = PlateDetector(self.client)
-        self.ocr = TritonOCR(self.client)
+        self.model_name = model_name
 
-    def run(self, image: np.ndarray, vehicle_conf: float = 0.4, plate_conf: float = 0.1) -> List[Dict[str, Any]]:
-        """Run full ANPR pipeline. Returns list of vehicle dicts with plates and OCR text."""
-        vehicles = self.vehicle.detect(image, conf_thresh=vehicle_conf)
-        results = []
+    def run(self, image: np.ndarray) -> dict[str, Any]:
+        """Run ANPR pipeline by sending image to server-side model."""
+        total_start = time.perf_counter()
 
-        for v in vehicles:
-            vehicle_result = {
-                "vehicle": {
-                    "bbox": v["bbox"],
-                    "conf": v["conf"],
-                    "class": v["class_name"],
-                },
-                "plates": []
-            }
+        # Generate request ID
+        request_id = str(uuid.uuid4())
 
-            x1, y1, x2, y2 = v["bbox"]
-            x1, y1 = max(0, x1), max(0, y1)
-            x2, y2 = min(image.shape[1], x2), min(image.shape[0], y2)
-            vehicle_crop = image[y1:y2, x1:x2]
+        # Add batch dimension if not present
+        if image.ndim == 3:
+            image = np.expand_dims(image, axis=0)
 
-            if vehicle_crop.size == 0:
-                results.append(vehicle_result)
-                continue
+        # Prepare input and output for Triton
+        inp = self.client.create_input(image, "image")
+        out = self.client.create_output("anpr_results")
 
-            plates = self.plate.detect(vehicle_crop, conf_thresh=plate_conf)
+        # Send image to server-side anpr_pipeline model
+        response = self.client.infer(
+            model_name=self.model_name,
+            inputs=[inp],
+            outputs=[out],
+            request_id=request_id,
+        )
 
-            for p in plates:
-                px1, py1, px2, py2 = p["bbox"]
-                plate_bbox = [x1 + px1, y1 + py1, x1 + px2, y1 + py2]
-                plate_crop = image[plate_bbox[1]:plate_bbox[3], plate_bbox[0]:plate_bbox[2]]
-                if plate_crop.size == 0:
-                    continue
+        total_time = (time.perf_counter() - total_start) * 1000
 
-                ocr_results = self.ocr.recognize(plate_crop)
-                plate_text = ocr_results[0]["text"] if ocr_results else ""
-                plate_conf = ocr_results[0]["confidence"] if ocr_results else 0.0
+        # Parse JSON response
+        results_json = response.as_numpy("anpr_results")[0]
+        results = json.loads(results_json)
 
-                vehicle_result["plates"].append({
-                    "bbox": plate_bbox,
-                    "confidence": p["confidence"],
-                    "text": plate_text,
-                    "text_confidence": plate_conf,
-                })
+        return {
+            "results": results,
+            "timing": {
+                "total_ms": total_time,
+            },
+        }
 
-            results.append(vehicle_result)
+    def run_batch(self, images: list[tuple[str, np.ndarray]]) -> dict[str, dict[str, Any]]:
+        """Run ANPR pipeline on batch of images with request IDs.
 
-        return results
+        Args:
+            images: List of (request_id, image) tuples
 
-    def run_from_path(self, image_source: str, **kwargs) -> List[Dict[str, Any]]:
+        Returns:
+            Dict mapping request_id to dict with results and timing information
+        """
+        batch_results = {}
+        for request_id, image in images:
+            result = self.run(image)
+            batch_results[request_id] = result
+        return batch_results
+
+    def run_from_path(self, image_source: str) -> dict[str, Any]:
         """Load image (from assets/ if just a filename) and run ANPR pipeline."""
         img = load_image(image_source)
-        return self.run(img, **kwargs)
+        return self.run(img)
 
-    def visualize(self, image: np.ndarray, results: List[Dict[str, Any]], output_path: Optional[str] = None):
+    def visualize(self, image: np.ndarray, result_dict: dict[str, Any], output_path: str | None = None):
         """Draw detections on image and optionally save."""
         vis = image.copy()
+        results = result_dict["results"] if isinstance(result_dict, dict) else result_dict
         for r in results:
             v = r["vehicle"]
             vx1, vy1, vx2, vy2 = v["bbox"]
             cv2.rectangle(vis, (vx1, vy1), (vx2, vy2), (0, 255, 0), 2)
-            cv2.putText(vis, f"{v['class']}: {v['conf']:.2f}", (vx1, vy1 - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            cv2.putText(
+                vis, f"{v['class']}: {v['conf']:.2f}", (vx1, vy1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2
+            )
 
             for p in r["plates"]:
                 px1, py1, px2, py2 = p["bbox"]
                 cv2.rectangle(vis, (px1, py1), (px2, py2), (0, 0, 255), 2)
                 label = f"{p['text']} ({p['text_confidence']:.2f})"
-                cv2.putText(vis, label, (px1, py1 - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+                cv2.putText(vis, label, (px1, py1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 
         if output_path:
             cv2.imwrite(output_path, vis)
@@ -99,12 +107,16 @@ class ANPRPipeline:
 
 def main():
     import sys
+
     pipeline = ANPRPipeline()
-    img_name = "frame_0000.jpg"
+    img_name = DEFAULT_IMAGE_NAME
     if len(sys.argv) > 1:
         img_name = sys.argv[1]
 
-    results = pipeline.run_from_path(img_name)
+    result_dict = pipeline.run_from_path(img_name)
+    results = result_dict["results"]
+    timing = result_dict["timing"]
+
     print(f"Found {len(results)} vehicles.")
     for r in results:
         v = r["vehicle"]
@@ -112,7 +124,10 @@ def main():
         for p in r["plates"]:
             print(f"    Plate: '{p['text']}' (conf={p['confidence']:.2f})")
 
-    pipeline.visualize(load_image(img_name), results, str(Path(__file__).resolve().parent / "assets" / "anpr_result.jpg"))
+    print("\nTiming Information:")
+    print(f"  Total time: {timing['total_ms']:.2f} ms")
+
+    pipeline.visualize(load_image(img_name), result_dict, str(Path(__file__).resolve().parent / DEFAULT_OUTPUT_PATH))
 
 
 if __name__ == "__main__":

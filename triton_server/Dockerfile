@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY triton_server/paddle_wheels /tmp/paddle_wheels
+#COPY triton_server/paddle_wheels /tmp/paddle_wheels
 COPY triton_server/requirements.txt /tmp/requirements.txt
 
 RUN --mount=type=cache,target=/root/.cache/pip \

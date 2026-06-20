@@ -1,8 +1,9 @@
-import numpy as np
-import cv2
 import os
 import time
 from statistics import mean
+
+import cv2
+import numpy as np
 import triton_python_backend_utils as pb_utils
 
 os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "True"
@@ -13,15 +14,18 @@ os.environ["PADDLE_DISABLE_GPU"] = "1"
 
 MIN_OCR_SIZE = 128
 
+# Point PaddleX to local official_models directory so it finds models locally
+# PaddleX looks for models in {PADDLEX_HOME}/official_models/
+MODEL_DIR = "/models/paddle_ocr_gpu_batched/official_models"
+os.environ["PADDLEX_HOME"] = MODEL_DIR
+
 # ----------------------------------------------------------
-# UPDATED FOR PADDLEOCR 3.2 (PaddleX API)
+# PADDLEOCR CONFIGURATION - Local PP-OCRv6 Server Tiny Models
 # ----------------------------------------------------------
 OCR_CONFIG = {
-    # Using mobile models for CPU-only compatibility
-    # Server models require GPU and may crash on CPU-only systems
-    "text_recognition_model_name": "PP-OCRv5_mobile_rec",
-    "text_detection_model_name": "PP-OCRv5_mobile_det",
-
+    # Local PP-OCRv6 server tiny models (in official_models directory)
+    "text_recognition_model_name": "PP-OCRv6_tiny_rec",
+    "text_detection_model_name": "PP-OCRv6_tiny_det",
     # Text Detection Parameters
     # Since your input is already a cropped plate, the detector
     # doesn't need a massive 960x960 canvas. 320 is perfect.
@@ -30,7 +34,6 @@ OCR_CONFIG = {
     "text_det_thresh": 0.30,  # Detection threshold for text regions (higher = faster, may miss faint text)
     "text_det_unclip_ratio": 1.60,  # Ratio to expand detected boxes (lower = tighter boxes, faster post-processing)
     "text_rec_score_thresh": 0.55,  # Minimum confidence for recognized text (higher = fewer false recognitions)
-
     # --- Preprocessing Module Disabling ---
     # These modules are disabled for ANPR to improve speed:
     # - License plates are already properly oriented (no rotation needed)
@@ -41,27 +44,29 @@ OCR_CONFIG = {
     "use_textline_orientation": False,  # Disable textline orientation model
 }
 
+
 class TritonPythonModel:
 
     def initialize(self, args):
-        pb_utils.Logger.log_info("[OCR] Initializing PaddleOCR 3.2 (PaddleX) model")
+        pb_utils.Logger.log_info("[OCR] Initializing PaddleOCR with local PP-OCRv6 models")
 
-        import paddle
         from paddleocr import PaddleOCR
 
-        self._paddle = paddle
         self._device = self._select_device()
         self.log_border = "-" * 100
         self.reader = None  # Initialize as None, set later if successful
 
-        # Initialize PaddleOCR - use older API (not PaddleX) which defaults to mobile models
-        pb_utils.Logger.log_info(f"[OCR] Initializing PaddleOCR (mobile models default)")
+        # Initialize PaddleOCR with local PP-OCRv6 server tiny models
+        pb_utils.Logger.log_info(f"[OCR] Initializing PaddleOCR with PADDLEX_HOME={MODEL_DIR}")
 
         try:
             self.reader = PaddleOCR(
-                lang='en',
-                use_angle_cls=False,
-                use_gpu=False,
+                text_detection_model_name=OCR_CONFIG["text_detection_model_name"],
+                text_recognition_model_name=OCR_CONFIG["text_recognition_model_name"],
+                lang="en",
+                use_doc_orientation_classify=OCR_CONFIG["use_doc_orientation_classify"],
+                use_doc_unwarping=OCR_CONFIG["use_doc_unwarping"],
+                use_textline_orientation=OCR_CONFIG["use_textline_orientation"],
                 det_limit_side_len=OCR_CONFIG["text_det_limit_side_len"],
                 det_db_box_thresh=OCR_CONFIG["text_det_box_thresh"],
                 det_db_thresh=OCR_CONFIG["text_det_thresh"],
@@ -87,13 +92,16 @@ class TritonPythonModel:
 
         start_time = time.perf_counter()
 
+        # Log request start with requested format
+        for req_idx, request in enumerate(requests):
+            request_id = request.request_id()
+            pb_utils.Logger.log_info("-" * 100)
+            pb_utils.Logger.log_info(f"OCR start request id {request_id if request_id else '-'}")
+            pb_utils.Logger.log_info("-" * 100)
+
         all_images = []
         request_map = []
         image_shapes = []
-        start_msg = f"OCR EXEC START | total_images={len(requests)}"
-        pb_utils.Logger.log_info(f"{self.log_border}")
-        pb_utils.Logger.log_info(f"{start_msg}")
-        pb_utils.Logger.log_info(f"{self.log_border}")
 
         # -------------------------------
         # 1. COLLECT INPUTS
@@ -101,10 +109,12 @@ class TritonPythonModel:
         for req_idx, request in enumerate(requests):
             try:
                 in_tensor = pb_utils.get_input_tensor_by_name(request, "INPUT1")
-                if in_tensor is None: continue
+                if in_tensor is None:
+                    continue
 
                 arr = in_tensor.as_numpy()
-                if arr is None or arr.size == 0: continue
+                if arr is None or arr.size == 0:
+                    continue
 
                 # batch handling
                 if arr.ndim == 4:
@@ -115,7 +125,8 @@ class TritonPythonModel:
                     raise ValueError(f"Invalid shape: {arr.shape}")
 
                 for i, img in enumerate(images):
-                    if img is None or img.size == 0: continue
+                    if img is None or img.size == 0:
+                        continue
                     image_shapes.append((img.shape, img.dtype))
                     all_images.append(img)
                     request_map.append(req_idx)
@@ -124,9 +135,7 @@ class TritonPythonModel:
                 pb_utils.Logger.log_error(f"[OCR][REQ-{req_idx}] Parsing failed: {str(e)}")
 
         total_images = len(all_images)
-        pb_utils.Logger.log_info(
-            f"[OCR] Aggregated batch → total_images={total_images}"
-        )
+        pb_utils.Logger.log_info(f"[OCR] Aggregated batch → total_images={total_images}")
 
         # -------------------------------
         # 2. EMPTY CASE
@@ -185,8 +194,10 @@ class TritonPythonModel:
                     scores = getattr(res, "rec_score", getattr(res, "rec_scores", []))
 
                 # Normalize to lists for iteration
-                if not isinstance(texts, list): texts = [texts] if texts else []
-                if not isinstance(scores, list): scores = [scores] if scores else []
+                if not isinstance(texts, list):
+                    texts = [texts] if texts else []
+                if not isinstance(scores, list):
+                    scores = [scores] if scores else []
 
                 shape, dtype = image_shapes[idx] if idx < len(image_shapes) else (None, None)
                 pb_utils.Logger.log_verbose(f"[OCR][IMG-{idx}] shape={shape} | texts={texts} scores={scores}")
@@ -209,15 +220,13 @@ class TritonPythonModel:
         # 6. MAP BACK & BUILD RESPONSES
         # -------------------------------
         per_request_outputs = [[] for _ in requests]
-        for out, req_idx in zip(outputs, request_map):
+        for out, req_idx in zip(outputs, request_map, strict=False):
             per_request_outputs[req_idx].append(out)
 
         responses = []
         for req_idx, out_list in enumerate(per_request_outputs):
             if not out_list:
-                pb_utils.Logger.log_warn(
-                    f"[OCR][REQ-{req_idx}] No output generated"
-                )
+                pb_utils.Logger.log_warn(f"[OCR][REQ-{req_idx}] No output generated")
                 out_list = ["No input"]
             out_arr = np.array(out_list, dtype=object).reshape(-1, 1)
             responses.append(pb_utils.InferenceResponse(output_tensors=[pb_utils.Tensor("OUTPUT0", out_arr)]))
@@ -230,10 +239,15 @@ class TritonPythonModel:
             f"ocr={ocr_time:.2f}ms | images={total_images} | success={success} | "
             f"per_image={total_time / max(1, total_images):.2f}ms"
         )
-        end_msg = f"OCR EXEC END | Total: {total_time:.2f}ms"
-        pb_utils.Logger.log_info(f"{self.log_border}")
-        pb_utils.Logger.log_info(f"{end_msg}")
-        pb_utils.Logger.log_info(f"{self.log_border}")
+
+        # Log request end with requested format
+        for req_idx, request in enumerate(requests):
+            request_id = request.request_id()
+            pb_utils.Logger.log_info("-" * 100)
+            pb_utils.Logger.log_info(
+                f"OCR end request id {request_id if request_id else '-'} and time take {total_time:.2f}ms"
+            )
+            pb_utils.Logger.log_info("-" * 100)
 
         return responses
 
@@ -245,9 +259,7 @@ class TritonPythonModel:
         if h < MIN_OCR_SIZE or w < MIN_OCR_SIZE:
             scale = max(MIN_OCR_SIZE / h, MIN_OCR_SIZE / w)
             new_size = (int(w * scale), int(h * scale))
-            pb_utils.Logger.log_verbose(
-                f"[OCR][IMG-{idx}] Upscaling {image.shape} → {new_size}"
-            )
+            pb_utils.Logger.log_verbose(f"[OCR][IMG-{idx}] Upscaling {image.shape} → {new_size}")
             image = cv2.resize(image, new_size)
         return image
 
@@ -260,9 +272,5 @@ class TritonPythonModel:
 
     def _select_device(self):
         # Force CPU mode for Triton server compatibility
-        pb_utils.Logger.log_info("[OCR] Forcing CPU mode for PaddleOCR")
-        try:
-            self._paddle.set_device("cpu")
-        except Exception as e:
-            pb_utils.Logger.log_warn(f"[OCR] Failed to set CPU device: {e}")
+        pb_utils.Logger.log_info("[OCR] Using CPU mode for ONNX engine")
         return "cpu"

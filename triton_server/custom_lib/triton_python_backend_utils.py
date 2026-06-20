@@ -114,7 +114,7 @@ def deserialize_bytes_tensor(encoded_tensor):
     while offset < len(val_buf):
         l = struct.unpack_from("<I", val_buf, offset)[0]
         offset += 4
-        sb = struct.unpack_from("<{}s".format(l), val_buf, offset)[0]
+        sb = struct.unpack_from(f"<{l}s", val_buf, offset)[0]
         offset += l
         strs.append(sb)
     return np.array(strs, dtype=np.object_)
@@ -361,9 +361,7 @@ class ModelConfig:
 
         if found_scheduler != None:
             raise ValueError(
-                "Configuration specified scheduling_choice as '"
-                + found_scheduler
-                + "', but auto-complete-config "
+                "Configuration specified scheduling_choice as '" + found_scheduler + "', but auto-complete-config "
                 "function for model '"
                 + self._model_config["name"]
                 + "' tries to set scheduling_choice as 'dynamic_batching'"
@@ -422,10 +420,7 @@ class ModelConfig:
 
         for current_input in self._model_config["input"]:
             if input["name"] == current_input["name"]:
-                if (
-                    current_input["data_type"] != "TYPE_INVALID"
-                    and current_input["data_type"] != input["data_type"]
-                ):
+                if current_input["data_type"] != "TYPE_INVALID" and current_input["data_type"] != input["data_type"]:
                     raise ValueError(
                         "unable to load model '"
                         + self._model_config["name"]
@@ -521,10 +516,7 @@ class ModelConfig:
 
         for current_output in self._model_config["output"]:
             if output["name"] == current_output["name"]:
-                if (
-                    current_output["data_type"] != "TYPE_INVALID"
-                    and current_output["data_type"] != output["data_type"]
-                ):
+                if current_output["data_type"] != "TYPE_INVALID" and current_output["data_type"] != output["data_type"]:
                     raise ValueError(
                         "unable to load model '"
                         + self._model_config["name"]
@@ -535,9 +527,7 @@ class ModelConfig:
                         + "', model provides "
                         + output["data_type"]
                     )
-                elif (
-                    current_output["dims"] and current_output["dims"] != output["dims"]
-                ):
+                elif current_output["dims"] and current_output["dims"] != output["dims"]:
                     raise ValueError(
                         "model '"
                         + self._model_config["name"]
@@ -586,8 +576,7 @@ class ModelConfig:
         if "decoupled" in transaction_policy_dict.keys():
             if (
                 "decoupled" in self._model_config["model_transaction_policy"]
-                and self._model_config["model_transaction_policy"]["decoupled"]
-                != transaction_policy_dict["decoupled"]
+                and self._model_config["model_transaction_policy"]["decoupled"] != transaction_policy_dict["decoupled"]
             ):
                 raise ValueError(
                     "trying to change decoupled property in auto-complete-config "
@@ -598,9 +587,7 @@ class ModelConfig:
                     + "'."
                 )
 
-            self._model_config["model_transaction_policy"][
-                "decoupled"
-            ] = transaction_policy_dict["decoupled"]
+            self._model_config["model_transaction_policy"]["decoupled"] = transaction_policy_dict["decoupled"]
 
 
 TRITONSERVER_REQUEST_FLAG_SEQUENCE_START = 1

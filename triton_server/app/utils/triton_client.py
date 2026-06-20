@@ -1,11 +1,11 @@
 """Shared Triton gRPC client wrapper."""
 
-import numpy as np
+from typing import Any
+
 import cv2
+import numpy as np
 import tritonclient.grpc as grpcclient
 from tritonclient.utils import np_to_triton_dtype
-from pathlib import Path
-from typing import Tuple, Dict, Any, Optional, List
 
 
 class TritonClient:
@@ -25,14 +25,14 @@ class TritonClient:
     def is_model_ready(self, model_name: str) -> bool:
         return self.client.is_model_ready(model_name)
 
-    def infer(self, model_name: str, inputs: List, outputs: List):
+    def infer(self, model_name: str, inputs: list, outputs: list, request_id: str = None):
         """Run inference on a model."""
-        return self.client.infer(model_name, inputs, outputs=outputs)
+        return self.client.infer(model_name, inputs, outputs=outputs, request_id=request_id)
 
     @staticmethod
     def letterbox_preprocess(
-        image: np.ndarray, target_size: Tuple[int, int] = (640, 640)
-    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+        image: np.ndarray, target_size: tuple[int, int] = (640, 640)
+    ) -> tuple[np.ndarray, dict[str, Any]]:
         """Resize with padding (letterbox) and normalize. Returns (blob, meta)."""
         h, w = image.shape[:2]
         th, tw = target_size
@@ -43,7 +43,7 @@ class TritonClient:
         padded = np.full((th, tw, 3), 114, dtype=np.uint8)
         x_off = (tw - nw) // 2
         y_off = (th - nh) // 2
-        padded[y_off:y_off + nh, x_off:x_off + nw] = resized
+        padded[y_off : y_off + nh, x_off : x_off + nw] = resized
 
         blob = padded.transpose(2, 0, 1).astype(np.float32) / 255.0
         blob = np.expand_dims(blob, axis=0)

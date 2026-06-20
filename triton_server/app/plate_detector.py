@@ -1,12 +1,10 @@
 """Plate detection client - calls plate_region_detection_rt_detr on Triton via gRPC."""
 
-import numpy as np
-import cv2
-from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
+from typing import Any
 
-from utils.triton_client import TritonClient
+import numpy as np
 from utils.image_utils import load_image
+from utils.triton_client import TritonClient
 
 
 class PlateDetector:
@@ -17,20 +15,20 @@ class PlateDetector:
     OUTPUT_NAME = "output0"
     INPUT_SIZE = (640, 640)
 
-    def __init__(self, triton_client: Optional[TritonClient] = None, server_url: str = "127.0.0.1:9001"):
+    def __init__(self, triton_client: TritonClient | None = None, server_url: str = "127.0.0.1:9001"):
         self.client = triton_client or TritonClient(server_url)
 
-    def preprocess(self, image: np.ndarray) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def preprocess(self, image: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
         """Letterbox preprocess for plate detection."""
         return self.client.letterbox_preprocess(image, self.INPUT_SIZE)
 
     def postprocess(
         self,
         raw_output: np.ndarray,
-        meta: Dict[str, Any],
-        original_shape: Tuple[int, int],
+        meta: dict[str, Any],
+        original_shape: tuple[int, int],
         conf_thresh: float = 0.1,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Parse plate detection output to bbox list."""
         if raw_output.ndim == 3:
             raw_output = raw_output[0]
@@ -67,7 +65,7 @@ class PlateDetector:
 
         return sorted(results, key=lambda x: x["confidence"], reverse=True)
 
-    def detect(self, image: np.ndarray, conf_thresh: float = 0.1) -> List[Dict[str, Any]]:
+    def detect(self, image: np.ndarray, conf_thresh: float = 0.1) -> list[dict[str, Any]]:
         """Run plate detection on an image."""
         blob, meta = self.preprocess(image)
         inp = self.client.create_input(blob, self.INPUT_NAME)
@@ -76,7 +74,7 @@ class PlateDetector:
         raw = response.as_numpy(self.OUTPUT_NAME)
         return self.postprocess(raw, meta, image.shape[:2], conf_thresh)
 
-    def detect_from_path(self, image_source: str, conf_thresh: float = 0.1) -> List[Dict[str, Any]]:
+    def detect_from_path(self, image_source: str, conf_thresh: float = 0.1) -> list[dict[str, Any]]:
         """Load image (from assets/ if just a filename) and run detection."""
         img = load_image(image_source)
         return self.detect(img, conf_thresh)
@@ -84,6 +82,7 @@ class PlateDetector:
 
 def main():
     import sys
+
     detector = PlateDetector()
     img_name = "frame_0000.jpg"
     if len(sys.argv) > 1:
