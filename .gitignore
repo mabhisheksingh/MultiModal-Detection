@@ -206,3 +206,17 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 /global_tracking.db
+
+# Data directories
+triton_client/data/
+modules/data/
+modules/face/input/
+
+# Video and image files
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# Debug frames
+debug_frames/
